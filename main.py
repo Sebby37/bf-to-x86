@@ -2,6 +2,9 @@ import sys
 from enum import Enum
 from dataclasses import dataclass
 
+TAPE_SIZE = 9999    # Do I even need to comment this? (Yes because it looks neat)
+MAX_INLINE_IO = 4   # The number of IO (print/read) instructions before we create a "function" and call that
+
 @dataclass
 class Instruction:
     type: int       # The type (arithmetic, IO, loop)
@@ -43,7 +46,7 @@ def main():
     if len(sys.argv) < 3:
         print("Warning: No output file specified, defaulting to 'out.asm'")
     
-    # Keeping track of arithmetics
+    # Keeping track of arithmetics (dictionaries are fun :)
     last_arithmetics = {
         "+": 0,
         "-": 0,
@@ -56,6 +59,8 @@ def main():
     read_calls = 0
     
     # Keeping track of loops
+    # With this, we "push" the current loop number onto this "stack" and "pop" it on loop exit, 
+    # always keeping track of the heirarchy without accidentally repeating loop numbers
     loop_stack = []
     num_loops = 0
     
@@ -63,7 +68,7 @@ def main():
     output = [
         # Allocate the space for the tape (but not really, by putting it in .bss its not stored in the executable and we get teensy ones)
         "section .bss",
-            "tape resb 9999",
+           f"tape resb {TAPE_SIZE}",
         
         "section .text",
         "global _start",
@@ -195,7 +200,9 @@ def main():
     ])
     
     # And add the IO functions if needed
-    if print_calls > 4:
+    # The idea for this is that if theres less than like 4 calls per IO function, it's cheaper to just paste them inline
+    # instead of call/ret them which uses a good few clock cycles, but once there are enough its cheaper to properly call/ret them
+    if print_calls > MAX_INLINE_IO:
         output.extend([
             "",
             "print:",
@@ -204,7 +211,7 @@ def main():
                 "syscall",
                 "ret"
         ])
-    if read_calls > 4:
+    if read_calls > MAX_INLINE_IO:
         output.extend([
             "",
             "read:",
