@@ -5,7 +5,6 @@ run: build
 	nasm -f elf64 -o out.o out.asm
 	ld -o out out.o
 	rm out.o
-	rm out.asm
 	./out
 clean:
 	rm bf2x86
