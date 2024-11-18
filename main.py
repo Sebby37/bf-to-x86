@@ -55,7 +55,7 @@ def main():
     loop_stack = []
     num_loops = 0
     
-    output = "section .data\n" + "\ttape times 9999 db 0\n" + "section .text\n" + "global _start\n" + "_start:\n" + "mov rsi, tape\n\n"
+    output = "section .bss\n" + "tape resb 9999\n" + "section .text\n" + "global _start\n" + "_start:\n" + "mov rsi,tape\n" + "xor rdx,rdx\n" + "inc rdx\n\n"
     
     instruction_list: list[Instruction] = []
     
@@ -99,13 +99,13 @@ def main():
             if inst.num > 1:
                 match inst.operation:
                     case Operations.INC:
-                        output += f"add byte [rsi], {inst.num}\n\n"
+                        output += f"add byte [rsi],{inst.num}\n\n"
                     case Operations.DEC:
-                        output += f"sub byte [rsi], {inst.num}\n\n"
+                        output += f"sub byte [rsi],{inst.num}\n\n"
                     case Operations.PTR_INC:
-                        output += f"add rsi, {inst.num}\n\n"
+                        output += f"add rsi,{inst.num}\n\n"
                     case Operations.PTR_DEC:
-                        output += f"sub rsi, {inst.num}\n\n"
+                        output += f"sub rsi,{inst.num}\n\n"
             else:
                 match inst.operation:
                     case Operations.INC:
@@ -122,27 +122,27 @@ def main():
                     if print_calls > 4:
                         output += "call print\n\n"
                     else:
-                        output += "mov rax, 1\n" + "mov rdi, 1\n" + "mov rdx, 1\n" + "syscall\n\n"
+                        output += "mov rax,rdx\n" + "mov rdi,rdx\n" + "syscall\n\n"
                 case Operations.READ:
                     if read_calls > 4:
                         output += "call read\n\n"
                     else:
-                        output += "mov rax, 0\n" + "mov rdi, 0\n" + "mov rdx, 1\n" + "syscall\n\n"
+                        output += "xor rax,rax\n" + "xor rdi,rdi\n" + "syscall\n\n"
         elif inst.type == InstTypes.LOOP:
             match inst.operation:
                 case Operations.LOOP_START:
-                    output += f"loop_{inst.num}:\n" + "cmp byte [rsi], 0\n" + f"je loop_end_{inst.num}\n\n"
+                    output += f"loop_{inst.num}:\n" + "cmp byte [rsi],0\n" + f"je loop_end_{inst.num}\n\n"
                 case Operations.LOOP_END:
-                    output += "cmp byte [rsi], 0\n" + f"jne loop_{inst.num}\n" + f"loop_end_{inst.num}:\n\n"
+                    output += "cmp byte [rsi],0\n" + f"jne loop_{inst.num}\n" + f"loop_end_{inst.num}:\n\n"
     
     # Finish off - Add exit statement
-    output += "mov rax, 60\n" + "xor rdi, rdi\n" + "syscall\n\n"
+    output += "mov rax,60\n" + "xor rdi,rdi\n" + "syscall\n\n"
     
     # And add the IO functions if needed
     if print_calls > 4:
-        output += "print:\n" + "mov rax, 1\n" + "mov rdi, 1\n" + "mov rdx, 1\n" + "syscall\n" + "ret\n\n"
+        output += "print:\n" + "mov rax,rdx\n" + "mov rdi,rdx\n" + "syscall\n" + "ret\n\n"
     if read_calls > 4:
-        output += "read:\n"  + "mov rax, 0\n" + "mov rdi, 0\n" + "mov rdx, 1\n" + "syscall\n" + "ret\n\n"
+        output += "read:\n"  + "xor rax,rax\n" + "xor rdi,rdi\n" + "syscall\n" + "ret\n\n"
     
     # And finally, write it to the output file
     open("out.asm" if len(sys.argv) < 3 else sys.argv[2], "w+").write(output)

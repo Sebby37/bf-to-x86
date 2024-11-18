@@ -3,7 +3,13 @@ build: main.c
 run: build
 	./bf2x86 $(FILE)
 	nasm -f elf64 -o out.o out.asm
-	ld -o out out.o
+	ld -o out -n -s out.o
+	rm out.o
+	./out
+optimized:
+	python3 main.py $(FILE)
+	nasm -f elf64 -o out.o out.asm
+	ld -o out -n -s out.o
 	rm out.o
 	./out
 clean:
