@@ -1,0 +1,6 @@
+*.b
+*.bf
+*.o
+*out*
+bf2x86
+.vscode
