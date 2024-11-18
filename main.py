@@ -36,12 +36,14 @@ def token_to_op(token: str):
     }[token]
 
 def main():
+    # Pretty please valid input
     if len(sys.argv) < 2:
         print("Error: No input file specified!")
         return
     if len(sys.argv) < 3:
         print("Warning: No output file specified, defaulting to 'out.asm'")
     
+    # Keeping track of arithmetics
     last_arithmetics = {
         "+": 0,
         "-": 0,
@@ -49,13 +51,32 @@ def main():
         "<": 0
     }
     
+    # Keeping track of IO
     print_calls = 0
     read_calls = 0
     
+    # Keeping track of loops
     loop_stack = []
     num_loops = 0
     
-    output = "section .bss\n" + "tape resb 9999\n" + "section .text\n" + "global _start\n" + "_start:\n" + "mov rsi,tape\n" + "xor rdx,rdx\n" + "inc rdx\n\n"
+    # The beginning of the asm
+    output = [
+        # Allocate the space for the tape (but not really, by putting it in .bss its not stored in the executable and we get teensy ones)
+        "section .bss",
+        "tape resb 9999",
+        
+        "section .text",
+        "global _start",
+        "_start:",
+        "mov rsi,tape",
+        
+        # Setting rdx to 1 (uses less bytes than `mov rdx,1`)
+        # We can do this at the very start, as rdx never changes in our program and is in fact used for the syscalls
+        # By keeping rdx at 1, we can mov it to the registers when needed for syscalls, saving precious instruction space
+        "xor rdx,rdx",
+        "inc rdx",
+        ""
+    ]
     
     instruction_list: list[Instruction] = []
     
@@ -97,55 +118,104 @@ def main():
     for inst in instruction_list:
         if inst.type == InstTypes.ARITHMETIC:
             if inst.num > 1:
+                # When we have more than 1 grouped arithmetic instructions, we can directly place the amount into the instruction
                 match inst.operation:
                     case Operations.INC:
-                        output += f"add byte [rsi],{inst.num}\n\n"
+                        output.append(f"add byte [rsi],{inst.num}")
                     case Operations.DEC:
-                        output += f"sub byte [rsi],{inst.num}\n\n"
+                        output.append(f"sub byte [rsi],{inst.num}")
                     case Operations.PTR_INC:
-                        output += f"add rsi,{inst.num}\n\n"
+                        output.append(f"add rsi,{inst.num}")
                     case Operations.PTR_DEC:
-                        output += f"sub rsi,{inst.num}\n\n"
+                        output.append(f"sub rsi,{inst.num}")
             else:
+                # When we only have 1 arithmetic inst, we can just use inc and dec as it uses less instruction space
                 match inst.operation:
                     case Operations.INC:
-                        output += f"inc byte [rsi]\n\n"
+                        output.append(f"inc byte [rsi]")
                     case Operations.DEC:
-                        output += f"dec byte [rsi]\n\n"
+                        output.append(f"dec byte [rsi]")
                     case Operations.PTR_INC:
-                        output += f"inc rsi\n\n"
+                        output.append(f"inc rsi")
                     case Operations.PTR_DEC:
-                        output += f"dec rsi\n\n"
+                        output.append(f"dec rsi")
+                        
         elif inst.type == InstTypes.IO:
             match inst.operation:
                 case Operations.PRINT:
                     if print_calls > 4:
-                        output += "call print\n\n"
+                        output.append("call print")
                     else:
-                        output += "mov rax,rdx\n" + "mov rdi,rdx\n" + "syscall\n\n"
+                        output.extend([
+                            # Sets rax and rdi to 1, as rdx is always 1 and we use less instruction space
+                            "",
+                            "mov rax,rdx",
+                            "mov rdi,rdx",
+                            "syscall",
+                            ""
+                        ])
                 case Operations.READ:
                     if read_calls > 4:
-                        output += "call read\n\n"
+                        output.append("call read")
                     else:
-                        output += "xor rax,rax\n" + "xor rdi,rdi\n" + "syscall\n\n"
+                        output.extend([
+                            # Sets rax and rdx to 0 using even less instruction space
+                            "",
+                            "xor rax,rax",
+                            "xor rdi,rdi",
+                            "syscall",
+                            ""
+                        ])
+                        
         elif inst.type == InstTypes.LOOP:
             match inst.operation:
                 case Operations.LOOP_START:
-                    output += f"loop_{inst.num}:\n" + "cmp byte [rsi],0\n" + f"je loop_end_{inst.num}\n\n"
+                    output.extend([
+                         "",
+                        f"loop_{inst.num}:",
+                         "cmp byte [rsi],0",
+                        f"je loop_end_{inst.num}",
+                         ""
+                    ])
                 case Operations.LOOP_END:
-                    output += "cmp byte [rsi],0\n" + f"jne loop_{inst.num}\n" + f"loop_end_{inst.num}:\n\n"
+                    output.extend([
+                         "",
+                         "cmp byte [rsi],0",
+                        f"jne loop_{inst.num}",
+                        f"loop_end_{inst.num}:",
+                         ""
+                    ])
     
     # Finish off - Add exit statement
-    output += "mov rax,60\n" + "xor rdi,rdi\n" + "syscall\n\n"
+    output.extend([
+        "",
+        "mov rax,60",  # Syscall code 60 for exit
+        "xor rdi,rdi", # Return code 0
+        "syscall"      # Do the thing
+    ])
     
     # And add the IO functions if needed
     if print_calls > 4:
-        output += "print:\n" + "mov rax,rdx\n" + "mov rdi,rdx\n" + "syscall\n" + "ret\n\n"
+        output.extend([
+            "",
+            "print:",
+                "mov rax,rdx",
+                "mov rdi,rdx",
+                "syscall",
+                "ret"
+        ])
     if read_calls > 4:
-        output += "read:\n"  + "xor rax,rax\n" + "xor rdi,rdi\n" + "syscall\n" + "ret\n\n"
+        output.extend([
+            "",
+            "read:",
+                "xor rax,rax",
+                "xor rdi,rdi",
+                "syscall",
+                "ret"
+        ])
     
     # And finally, write it to the output file
-    open("out.asm" if len(sys.argv) < 3 else sys.argv[2], "w+").write(output)
+    open("out.asm" if len(sys.argv) < 3 else sys.argv[2], "w+").write("\n".join(output))
 
 if __name__ == "__main__":
     main()
