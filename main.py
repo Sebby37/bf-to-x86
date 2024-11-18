@@ -9,19 +9,19 @@ class Instruction:
     num: int        # The consecutive number of these for arithmetic, or the number of them that exist for IO (not really used), or the loop num
 
 class InstTypes(Enum):
-    ARITHMETIC = 0
-    IO = 1
-    LOOP = 2
+    ARITHMETIC = 0  # + - > <
+    IO = 1          # . ,
+    LOOP = 2        # [ ]
 
 class Operations(Enum):
-    INC = 0         # Increment memory value
-    DEC = 1         # Decrement memory value
-    PTR_INC = 2     # Increment pointer
-    PTR_DEC = 3     # Decrement pointer
-    PRINT = 4       # Print current character
-    READ = 5        # Read current character from STDIN
-    LOOP_START = 6  # Begin loop, jump to end if value at ptr == 0
-    LOOP_END = 7    # End loop, jump to beginning if value at ptr != 0
+    INC = 0         # + Increment memory value
+    DEC = 1         # - Decrement memory value
+    PTR_INC = 2     # > Increment pointer
+    PTR_DEC = 3     # < Decrement pointer
+    PRINT = 4       # . Print current character
+    READ = 5        # , Read current character from STDIN
+    LOOP_START = 6  # [ Begin loop, jump to end if value at ptr == 0
+    LOOP_END = 7    # ] End loop, jump to beginning if value at ptr != 0
     
 def token_to_op(token: str):
     return {
@@ -63,19 +63,19 @@ def main():
     output = [
         # Allocate the space for the tape (but not really, by putting it in .bss its not stored in the executable and we get teensy ones)
         "section .bss",
-        "tape resb 9999",
+            "tape resb 9999",
         
         "section .text",
         "global _start",
         "_start:",
-        "mov rsi,tape",
-        
-        # Setting rdx to 1 (uses less bytes than `mov rdx,1`)
-        # We can do this at the very start, as rdx never changes in our program and is in fact used for the syscalls
-        # By keeping rdx at 1, we can mov it to the registers when needed for syscalls, saving precious instruction space
-        "xor rdx,rdx",
-        "inc rdx",
-        ""
+            "mov rsi,tape",
+            
+            # Setting rdx to 1 (uses less bytes than `mov rdx,1`)
+            # We can do this at the very start, as rdx never changes in our program and is in fact used for the syscalls
+            # By keeping rdx at 1, we can mov it to the registers when needed for syscalls, saving precious instruction space
+            "xor rdx,rdx",
+            "inc rdx",
+            ""
     ]
     
     instruction_list: list[Instruction] = []
